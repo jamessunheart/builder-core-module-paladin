@@ -1,8 +1,9 @@
-# paladin module: Proactive Guardian upgrade
+# Paladin with Wisdom Layer
 from datetime import datetime
 
 violation_log = []
 future_threats = []
+wisdom_log = []
 
 
 def scan(input_text: str) -> dict:
@@ -20,18 +21,19 @@ def scan(input_text: str) -> dict:
         issues.append("Malicious intent detected")
         flagged = True
 
-    if flagged:
-        violation_log.append({
-            "input": input_text,
-            "issues": issues,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-
-    return {
-        "allowed": not flagged,
+    entry = {
+        "input": input_text,
         "issues": issues,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
+        "resolved": not flagged,
+        "needs_review": flagged
     }
+    violation_log.append(entry)
+    if flagged:
+        wisdom_log.append({"type": "threat", "detail": entry})
+
+    return {"allowed": not flagged, "issues": issues, "timestamp": entry["timestamp"]}
+
 
 def forecast_threats(modules: list) -> dict:
     risks = []
@@ -44,18 +46,25 @@ def forecast_threats(modules: list) -> dict:
             risks.append(f"Central execution logic needs validation in: {name}")
 
     future_threats.extend(risks)
+    wisdom_log.append({"type": "forecast", "timestamp": datetime.utcnow().isoformat(), "predictions": risks})
+    return {"predicted_threats": risks, "timestamp": datetime.utcnow().isoformat()}
+
+
+def learn_from_feedback(entry_id: int, outcome: str) -> dict:
+    if 0 <= entry_id < len(wisdom_log):
+        wisdom_log[entry_id]["feedback"] = outcome
+        wisdom_log[entry_id]["timestamp_feedback"] = datetime.utcnow().isoformat()
+        return {"message": "Feedback recorded", "entry": wisdom_log[entry_id]}
+    return {"error": "Invalid entry ID"}
+
+
+def wisdom_summary(_: str = None) -> dict:
     return {
-        "predicted_threats": risks,
-        "timestamp": datetime.utcnow().isoformat()
+        "total_wisdom_entries": len(wisdom_log),
+        "last_3": wisdom_log[-3:] if wisdom_log else [],
+        "summary": "Paladin is building reflective memory of system threats and decisions."
     }
 
-def weekly_summary(_: str = None) -> dict:
-    return {
-        "total_violations": len(violation_log),
-        "recent_flags": violation_log[-5:] if violation_log else [],
-        "future_warnings": future_threats[-5:] if future_threats else [],
-        "summary": "No threats detected." if not violation_log and not future_threats else f"{len(violation_log)} issues logged, {len(future_threats)} forecasts generated."
-    }
 
 def run(payload: dict) -> dict:
     action = payload.get("action")
@@ -65,4 +74,8 @@ def run(payload: dict) -> dict:
         return weekly_summary()
     elif action == "forecast":
         return forecast_threats(payload.get("modules", []))
+    elif action == "learn":
+        return learn_from_feedback(payload.get("entry_id", -1), payload.get("outcome", ""))
+    elif action == "wisdom":
+        return wisdom_summary()
     return {"error": "Unknown action"}
